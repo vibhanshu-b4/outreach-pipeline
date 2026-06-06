@@ -29,3 +29,6 @@ Thumbs.db
 # --- IDE ---
 .vscode/
 .idea/
+
+# --- Throwaway debug scripts ---
+debug_*.py

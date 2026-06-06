@@ -1,16 +1,31 @@
+# --- Environment & secrets ---
 .env
+
+# --- Virtual environment ---
+.venv/
+venv/
+env/
+
+# --- API fixtures (real data, never commit) ---
+data/fixtures/
+
+# --- Pipeline output data (generated, not source) ---
+data/companies.json
+data/prospects.json
+data/emails.json
+
+# --- Logs ---
+logs/
+
+# --- Python cache ---
 __pycache__/
 *.py[cod]
 *.pyo
-*.pyd
-.Python
-env/
-venv/
-.venv/
-logs/
-.idea/
+
+# --- OS junk ---
+.DS_Store
+Thumbs.db
+
+# --- IDE ---
 .vscode/
-*.egg-info/
-dist/
-build/
-Work_map.md
+.idea/

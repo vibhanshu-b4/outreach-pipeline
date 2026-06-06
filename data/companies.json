@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "name": "Acme",
+    "domain": "acme.com",
+    "industry": "Software",
+    "size": "51-200",
+    "country": "US"
+  }
+]

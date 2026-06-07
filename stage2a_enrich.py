@@ -12,7 +12,7 @@ def enrich_companies(companies: list[dict]) -> list[dict]:
     Takes list of dicts from Stage 1: {name, domain, industry, size, country}
     Calls Prospeo company enrichment for each domain.
     Returns enriched list with added: city, description
-    Saves to data/companies.json (overwrites Stage 1 output with richer data)
+    Saves to data/companies_enriched.json (overwrites Stage 1 output with richer data)
 
     Why enrich if Stage 1 already has industry/size/country?
     Prospeo data is cleaner and adds city + description_ai for email context.
@@ -96,12 +96,12 @@ def enrich_companies(companies: list[dict]) -> list[dict]:
         return []
 
     # Save — overwrites companies.json with richer version
-    out_path = Path("data/companies.json")
+    out_path = Path("data/companies_enriched.json")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8") as f:
         json.dump(enriched, f, indent=2, ensure_ascii=False)
 
-    print(f"\nProspeo: {len(enriched)} companies enriched → saved to data/companies.json")
+    print(f"\nProspeo: {len(enriched)} companies enriched → saved to data/companies_enriched.json")
     return enriched
 
 

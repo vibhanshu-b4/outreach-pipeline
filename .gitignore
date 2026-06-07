@@ -13,6 +13,7 @@ data/fixtures/
 data/companies.json
 data/prospects.json
 data/emails.json
+data/checkpoint.json
 
 # --- Logs ---
 logs/

@@ -6,28 +6,64 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
-# Email preference order
 VERIFICATION_PRIORITY = ["verified", "probable"]
+BASE_URL = "https://api.superflow.run"
+
+
+def get_auth_token() -> str | None:
+    """
+    Fetches a fresh auth token from Eazyreach using CLIENT_ID + CLIENT_SECRET.
+    Falls back to EAZYREACH_API_KEY if already set in .env.
+    """
+    # If a static token is already in .env, use it directly
+    static_token = os.getenv("EAZYREACH_API_KEY", "").strip()
+    if static_token:
+        return static_token
+
+    # Otherwise generate one from credentials
+    client_id     = os.getenv("EAZYREACH_CLIENT_ID", "").strip()
+    client_secret = os.getenv("EAZYREACH_CLIENT_SECRET", "").strip()
+
+    if not client_id or not client_secret:
+        print("ERROR: Set either EAZYREACH_API_KEY or both "
+              "EAZYREACH_CLIENT_ID + EAZYREACH_CLIENT_SECRET in .env")
+        return None
+
+    try:
+        r = requests.post(
+            f"{BASE_URL}/b2b/createAuthToken/",
+            json={"clientId": client_id, "clientSecret": client_secret},
+            timeout=15,
+        )
+        r.raise_for_status()
+        data = r.json()
+        token = (
+            data.get("authToken") or
+            data.get("auth_token") or
+            data.get("token")
+        )
+        if not token:
+            print(f"ERROR: No token in auth response: {data}")
+            return None
+        return token
+    except Exception as e:
+        print(f"ERROR: Could not get Eazyreach auth token — {e}")
+        return None
 
 
 def resolve_emails(prospects: list[dict]) -> list[dict]:
     """
-    Takes prospect list from Stage 2B: {name, title, linkedin_url,
-                                         company_domain, company_name}
+    Takes prospect list from Stage 2B.
     For each prospect, calls Eazyreach to get their work email.
     Returns only prospects where an email was found.
     Saves to data/emails.json
-
-    NOTE: title will be empty — personalization uses company/industry instead.
     """
     load_dotenv()
-    auth_token = os.getenv("EAZYREACH_API_KEY")
 
+    auth_token = get_auth_token()
     if not auth_token:
-        print("ERROR: EAZYREACH_API_KEY missing from .env")
         return []
 
-    url     = "https://api.superflow.run/b2b/linkedin-emails"
     headers = {
         "Content-Type":  "application/json",
         "Authorization": f"Bearer {auth_token}",
@@ -47,7 +83,7 @@ def resolve_emails(prospects: list[dict]) -> list[dict]:
 
         try:
             response = requests.post(
-                url,
+                f"{BASE_URL}/b2b/linkedin-emails",
                 headers=headers,
                 json={"linkedinUrl": linkedin_url},
                 timeout=30,
@@ -60,7 +96,7 @@ def resolve_emails(prospects: list[dict]) -> list[dict]:
             print("invalid auth token — stopping")
             break
         if response.status_code == 402:
-            print("insufficient balance — stopping")
+            print("insufficient balance — top up Eazyreach credits and retry")
             break
         if response.status_code == 404:
             print("LinkedIn profile not found — skipping")
@@ -79,7 +115,7 @@ def resolve_emails(prospects: list[dict]) -> list[dict]:
             continue
 
         if data.get("status") != "success":
-            print(f"non-success status: {data.get('status')} — skipping")
+            print(f"status: {data.get('status', '?')} — skipping")
             continue
 
         emails = data.get("emails", [])
@@ -98,34 +134,29 @@ def resolve_emails(prospects: list[dict]) -> list[dict]:
                 break
 
         if not chosen_email:
-            print("no usable email found — skipping")
+            print("no usable email — skipping")
             continue
 
         print(f"found ({chosen_email})")
-
-        # Merge email into prospect dict — keep all existing fields
-        enriched = {**prospect, "email": chosen_email}
-        resolved.append(enriched)
-
-        time.sleep(0.5)  # polite delay
+        resolved.append({**prospect, "email": chosen_email})
+        time.sleep(0.5)
 
     if not resolved:
-        print("No emails resolved across all prospects")
+        print("No emails resolved")
         return []
 
-    # Save to data/emails.json
     out_path = Path("data/emails.json")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8") as f:
         json.dump(resolved, f, indent=2, ensure_ascii=False)
 
-    print(f"\nEazyreach: {len(resolved)}/{len(prospects)} emails resolved "
+    print(f"\nEazyreach: {len(resolved)}/{len(prospects)} resolved "
           f"→ saved to data/emails.json")
     return resolved
 
 
 if __name__ == "__main__":
-    # Standalone test with prospects from Stage 2B fixture
+    load_dotenv()
     test_prospects = [
         {
             "name":           "Akhil Joshi",
@@ -139,5 +170,3 @@ if __name__ == "__main__":
     print(f"\nTotal resolved: {len(result)}")
     if result:
         print("Sample:", json.dumps(result[0], indent=2))
-
-        

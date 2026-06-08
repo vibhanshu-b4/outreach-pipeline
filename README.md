@@ -1,45 +1,38 @@
 # Outreach Automation Pipeline
 
-An end-to-end outreach automation system that discovers similar companies, identifies decision makers, enriches contact information, generates personalized outreach emails, and sends them through Brevo.
+An end-to-end outreach automation system that:
 
-The entire workflow runs from a single command:
-
-```bash
-python main.py stripe.com
-```
+1. Discovers companies similar to a target company.
+2. Finds relevant decision makers.
+3. Enriches contact information.
+4. Generates personalized outreach emails using Ollama.
+5. Sends emails through Brevo.
 
 ---
 
-# Architecture
+## Architecture
 
 ```text
-Input Company Domain
-          │
-          ▼
-Stage 1: Similar Company Discovery
-          │
-          ▼
-Stage 2A: Company Enrichment
-          │
-          ▼
-Stage 2B: Decision Maker Discovery
-          │
-          ▼
-Stage 3: Person Enrichment
-          │
-          ▼
-Stage 4: Email Generation
-          │
-          ▼
+Input Company
+      ↓
+Stage 1  → Ocean.io (Lookalike Companies)
+      ↓
+Stage 2A → Prospeo (Company Enrichment)
+      ↓
+Stage 2B → Prospeo (Decision Maker Discovery)
+      ↓
+Stage 3  → Prospeo (Person Enrichment)
+      ↓
+Stage 4  → Ollama (Email Generation)
+      ↓
 Checkpoint Review
-          │
-          ▼
-Stage 5: Email Sending
+      ↓
+Stage 5  → Brevo (Email Delivery)
 ```
 
 ---
 
-# Tech Stack
+## Tech Stack
 
 * Python
 * Ocean.io API
@@ -47,11 +40,11 @@ Stage 5: Email Sending
 * Ollama (Llama 3.2)
 * Brevo API
 * Cloudflare Email Routing
-* Namecheap Domain + Mailbox
+* Namecheap Domain
 
 ---
 
-# Project Structure
+## Project Structure
 
 ```text
 outreach_pipeline/
@@ -64,12 +57,16 @@ outreach_pipeline/
 ├── stage5_brevo.py
 ├── checkpoint.py
 │
+├── test_stage1.py
+├── test_stage2a.py
+├── test_stage2b.py
+├── test_stage3.py
+├── test_stage4.py
+├── test_stage5.py
+│
 ├── data/
-│   ├── companies.json
-│   ├── companies_enriched.json
-│   ├── prospects.json
-│   ├── emails.json
-│   └── fixtures/
+│   ├── fixtures/
+│   └── *.json
 │
 ├── requirements.txt
 ├── .env
@@ -78,294 +75,163 @@ outreach_pipeline/
 
 ---
 
-# Stage 1 — Similar Company Discovery
+## Pipeline Stages
 
-## Goal
+### Stage 1 — Company Discovery
 
-Find companies similar to the input company.
+Uses Ocean.io to discover companies similar to the input company.
 
-Example:
+Output:
+
+```text
+Company Name
+Domain
+Industry
+Size
+Country
+```
+
+---
+
+### Stage 2A — Company Enrichment
+
+Uses Prospeo to enrich discovered companies.
+
+Output:
+
+```text
+Industry
+Description
+Location
+Company Metadata
+```
+
+---
+
+### Stage 2B — Decision Maker Discovery
+
+Uses Prospeo to find relevant contacts within enriched companies.
+
+Output:
+
+```text
+Name
+LinkedIn URL
+Company
+```
+
+---
+
+### Stage 3 — Person Enrichment
+
+Uses Prospeo Person Enrichment to resolve:
+
+```text
+Professional Email
+Job Title
+Company Association
+```
+
+---
+
+### Stage 4 — Personalized Email Generation
+
+Uses a hybrid approach:
+
+* Deterministic template
+* Ollama (Llama 3.2) enhancement
+
+Features:
+
+* Personalized emails
+* Company-aware messaging
+* Template fallback if Ollama fails
+
+---
+
+### Checkpoint
+
+Displays:
+
+* Recipients
+* Companies
+* Emails
+* Subject lines
+* Email preview
+
+Requires manual approval before sending.
+
+---
+
+### Stage 5 — Email Delivery
+
+Uses Brevo Transactional Email API.
+
+Features:
+
+* HTML email generation
+* Test-recipient override
+* Dry-run mode
+* Delivery logging
+
+---
+
+## Testing
+
+Each stage was developed and validated independently using fixture-based tests.
+
+Run:
+
+```bash
+python test_stage1.py
+python test_stage2a.py
+python test_stage2b.py
+python test_stage3.py
+python test_stage4.py
+python test_stage5.py
+```
+
+Current Status:
+
+```text
+Stage 1  ✓ Passed
+Stage 2A ✓ Passed
+Stage 2B ✓ Passed
+Stage 3  ✓ Passed
+Stage 4  ✓ Passed
+Stage 5  ✓ Passed
+```
+
+---
+
+## Running
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Make sure Ollama is running.
+```bash
+ollama serve
+```
+
+Run the full pipeline:
 
 ```bash
 python main.py stripe.com
 ```
 
-Input:
+or
 
-```text
-stripe.com
-```
-
-Output:
-
-```text
-Adyen
-Razorpay
-Cashfree
-Rapyd
-...
-```
-
-## How It Works
-
-The pipeline calls the Ocean.io Lookalike API.
-
-Ocean returns companies that closely resemble the seed company based on:
-
-* Industry
-* Company profile
-* Business model
-* Market positioning
-
-Results are stored in:
-
-```text
-data/companies.json
-```
-
-Caching is used to avoid consuming API credits repeatedly.
-
----
-
-# Stage 2A — Company Enrichment
-
-## Goal
-
-Gather additional context about discovered companies.
-
-For each company, Prospeo enriches:
-
-* Industry
-* Company description
-* Size
-* Location
-* Domain
-
-Example:
-
-```json
-{
-  "name": "Razorpay",
-  "industry": "Software Development",
-  "country": "India",
-  "description": "Payment solution provider..."
-}
-```
-
-Results are stored in:
-
-```text
-data/companies_enriched.json
-```
-
-This information is later used for email personalization.
-
----
-
-# Stage 2B — Decision Maker Discovery
-
-## Goal
-
-Identify relevant contacts inside target companies.
-
-The pipeline searches for decision makers such as:
-
-* Founder
-* CEO
-* VP
-* Director
-* Head of Sales
-* Head of Growth
-* Partnerships Lead
-
-Example:
-
-```json
-{
-  "name": "Akhil Joshi",
-  "title": "Associate Director",
-  "company_name": "Razorpay"
-}
-```
-
-Results are stored in:
-
-```text
-data/prospects.json
+```bash
+python main.py stripe
 ```
 
 ---
 
-# Stage 3 — Person Enrichment
-
-## Goal
-
-Resolve contact information for discovered prospects.
-
-Prospeo Person Enrichment is used to enrich contacts with:
-
-* Professional email
-* Updated title
-* Company association
-
-Example:
-
-```json
-{
-  "name": "Akhil Joshi",
-  "email": "akhil.joshi@razorpay.com",
-  "title": "Associate Director"
-}
-```
-
-Results are stored in:
-
-```text
-data/emails.json
-```
-
----
-
-# Stage 4 — Personalized Email Generation
-
-## Goal
-
-Generate personalized outreach emails.
-
-## Hybrid Approach
-
-The system uses:
-
-### Step 1 — Deterministic Template
-
-A structured outreach template is created using:
-
-* Prospect name
-* Company name
-* Job title
-* Industry
-* Company description
-
-This guarantees consistency and prevents hallucinations.
-
-### Step 2 — Ollama Enhancement
-
-The template is then passed to:
-
-```text
-Llama 3.2 via Ollama
-```
-
-Ollama rewrites the message to sound:
-
-* More natural
-* More conversational
-* More human
-
-while preserving all factual information.
-
-If Ollama is unavailable, the system automatically falls back to the original template.
-
-Example:
-
-```text
-Hi Akhil,
-
-I came across Razorpay and noticed your work as Associate Director.
-
-Given Razorpay's focus in Software Development, I think there's a strong fit with what we're building at Vocallabs.
-
-We build AI voice agents that help businesses automate customer support, lead qualification, and outbound engagement through natural, human-like conversations.
-
-Worth a 15-minute conversation?
-
-Best,
-Vibhanshu
-```
-
----
-
-# Checkpoint Stage
-
-## Goal
-
-Prevent accidental outreach.
-
-Before sending any email, the system pauses and displays:
-
-* Recipient list
-* Company names
-* Email addresses
-* Subject lines
-* Email preview
-
-Example:
-
-```text
-Proceed with sending 4 emails? (y/n)
-```
-
-No emails are sent without explicit user approval.
-
----
-
-# Stage 5 — Email Delivery
-
-## Goal
-
-Send personalized emails through Brevo.
-
-The pipeline:
-
-1. Converts plain text emails to HTML.
-2. Sends emails using Brevo Transactional Email API.
-3. Tracks responses.
-4. Displays delivery status.
-
-Example:
-
-```text
-Sent ✓
-Message ID: <brevo-id>
-```
-
----
-
-# Safety Features
-
-## Test Recipient Override
-
-For demonstrations and testing:
-
-```env
-TEST_RECIPIENT=your-email@gmail.com
-```
-
-All emails are redirected to a safe inbox.
-
-Real executive emails are never contacted during development.
-
----
-
-## Dry Run Mode
-
-The pipeline supports dry-run execution.
-
-```python
-send_emails(prospects, dry_run=True)
-```
-
-This displays the emails without sending them.
-
----
-
-## Checkpoint Confirmation
-
-Every outreach batch requires manual approval before delivery.
-
----
-
-# Environment Variables
+## Environment Variables
 
 ```env
 OCEAN_API_KEY=
@@ -374,94 +240,38 @@ PROSPEO_API_KEY=
 
 BREVO_API_KEY=
 
-SENDER_NAME=Your Name
-SENDER_EMAIL=Your Brevo Sender Mail
+SENDER_NAME=
+SENDER_EMAIL=
 
-TEST_RECIPIENT=your-email@gmail.com
+TEST_RECIPIENT=
 ```
 
 ---
 
-# Running the Project
+## Safety Features
 
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-Run:
-
-```bash
-python main.py stripe.com
-```
+* Manual checkpoint before delivery
+* Test-recipient override
+* Dry-run support
+* Cached API responses
+* Stage-wise validation tests
 
 ---
 
-# Caching
+## Future Improvements
 
-API results are cached to reduce:
-
-* API costs
-* Duplicate requests
-* Processing time
-
-Cached files:
-
-```text
-data/companies.json
-data/companies_enriched.json
-data/prospects.json
-data/emails.json
-```
-
-Delete a cache file to force a fresh API request.
+* Multi-provider enrichment with automatic fallback.
+* Follow-up email sequence generation.
+* CRM integrations (HubSpot, Salesforce, Pipedrive).
+* Analytics dashboard for opens, replies, and conversions.
+* Prospect ranking based on relevance and seniority.
+* Web-based dashboard for campaign management.
+* A/B testing for outreach emails.
+* Queue-based processing for improved scalability.
+* Enhanced personalization using additional company and prospect context.
 
 ---
 
-# Design Decisions
-
-### Why Templates + Ollama?
-
-Using a deterministic template guarantees:
-
-* Consistency
-* Personalization
-* No fabricated claims
-
-Ollama is used only to improve wording and readability.
-
-### Why a Checkpoint?
-
-Sending emails automatically to real decision makers can be risky.
-
-The checkpoint ensures:
-
-* Human review
-* Safe testing
-* Better outreach quality
-
-### Why Test Recipient Override?
-
-The project is demonstrated using real prospect data.
-
-Redirecting all emails to a test inbox prevents accidental outreach during development and demos.
-
----
-
-# Future Improvements
-
-* Multi-threaded enrichment
-* CRM integrations
-* Email open tracking
-* Follow-up sequence generation
-* Analytics dashboard
-* Reply classification
-* A/B testing of outreach messages
-
----
-
-# Author
+## Author
 
 Vibhanshu Bhardwaj
-

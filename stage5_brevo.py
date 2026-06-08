@@ -12,8 +12,7 @@ SENDER_NAME    = "Vibhanshu"
 SENDER_EMAIL   = "contact@vibhanshu.online"
 
 # Override recipient — set to None to send to real emails
-TEST_RECIPIENT = "bibhanshu1995@gmail.com"
-
+TEST_RECIPIENT = os.getenv("TEST_RECIPIENT")
 
 def send_emails(final_prospects: list[dict], dry_run: bool = False) -> dict:
     """
@@ -62,12 +61,16 @@ def send_emails(final_prospects: list[dict], dry_run: bool = False) -> dict:
             skipped += 1
             continue
 
-        # Convert plain text body to simple HTML
-        html_body = body.replace("\n", "<br>")
+        # Convert plain text to clean HTML — each paragraph separated by blank line
+        paragraphs = [p.strip() for p in body.split("\n\n") if p.strip()]
+        html_paragraphs = "".join(
+            f'<p style="margin: 0 0 16px 0; line-height: 1.6;">{p.replace(chr(10), "<br>")}</p>'
+            for p in paragraphs
+        )
         html_body = f"""
         <html>
-          <body style="font-family: Arial, sans-serif; font-size: 15px; color: #222; max-width: 600px;">
-            {html_body}
+          <body style="font-family: Arial, sans-serif; font-size: 15px; color: #222222; max-width: 600px; margin: 0 auto; padding: 20px;">
+            {html_paragraphs}
           </body>
         </html>
         """
@@ -153,4 +156,3 @@ if __name__ == "__main__":
     print("Sending test email to:", TEST_RECIPIENT)
     result = send_emails([test_prospect])
     print(f"\nResult: {result}")
-    

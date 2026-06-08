@@ -193,3 +193,4 @@ if __name__ == "__main__":
 
     enriched = parse_enriched(raw, TEST_COMPANIES)
     run_tests(raw, enriched)
+

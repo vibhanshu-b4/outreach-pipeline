@@ -247,6 +247,12 @@ BREVO_TEST_RECIPIENT=
 
 ---
 
+### Credit Optimization
+
+The pipeline uses caching and fixture-based testing to minimize API usage during development. Previously fetched responses are reused whenever possible, reducing both API costs and unnecessary requests, ultimately saving a lot of time.
+
+---
+
 ## Safety Features
 
 * Manual checkpoint before delivery

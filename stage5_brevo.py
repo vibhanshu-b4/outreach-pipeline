@@ -12,7 +12,7 @@ SENDER_NAME    = "Vibhanshu"
 SENDER_EMAIL   = "contact@vibhanshu.online"
 
 # Override recipient — set to None to send to real emails
-TEST_RECIPIENT = "anonymous2002@gmail.com"
+TEST_RECIPIENT = "bibhanshu1995@gmail.com"
 
 
 def send_emails(final_prospects: list[dict], dry_run: bool = False) -> dict:

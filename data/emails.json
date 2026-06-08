@@ -1,1 +1,34 @@
-[]
+[
+  {
+    "name": "Mahan Shahi",
+    "title": "AVP Sales - Head of Digital DACH",
+    "linkedin_url": "https://www.linkedin.com/in/mahanshahi",
+    "company_domain": "adyen.com",
+    "company_name": "Adyen",
+    "email": "mahan.shahi@adyen.com"
+  },
+  {
+    "name": "Akhil Joshi",
+    "title": "Associate Director",
+    "linkedin_url": "https://www.linkedin.com/in/akhil-joshi-3055341b",
+    "company_domain": "razorpay.com",
+    "company_name": "Razorpay",
+    "email": "akhil.joshi@razorpay.com"
+  },
+  {
+    "name": "Russell Benton",
+    "title": "Director of Risk",
+    "linkedin_url": "https://www.linkedin.com/in/russell-b-49773931",
+    "company_domain": "rapyd.net",
+    "company_name": "Rapyd",
+    "email": "russellb@rapyd.net"
+  },
+  {
+    "name": "Nekzad Malegamwalla",
+    "title": "Director",
+    "linkedin_url": "https://www.linkedin.com/in/nekzad-malegamwalla-aa54185b",
+    "company_domain": "cashfree.com",
+    "company_name": "Cashfree Payments",
+    "email": "nekzad.malegamwalla@cashfree.com"
+  }
+]

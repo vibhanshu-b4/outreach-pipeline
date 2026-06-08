@@ -1,24 +1,21 @@
 """
-Test for Stage 3 — Eazyreach Email Resolution (offline, fixture-based)
+Test for Stage 3 — Prospeo Person Enrichment (offline, fixture-based)
 
-First run  : calls real API for 1 LinkedIn URL, saves to data/fixtures/eazyreach_raw.json
+First run  : calls real API for 1 person, saves to data/fixtures/prospeo_person_raw.json
 After that : loads fixture, zero API calls, zero credits
 
 Force refresh: python test_stage3.py --refresh
-
-NOTE: Only tests 1 profile to save credits.
+Cost: 1 credit on first run only.
 """
 import json
 import sys
 import os
-import time
 from pathlib import Path
 from dotenv import load_dotenv
 import requests
 
-FIXTURE_PATH = Path("data/fixtures/eazyreach_raw.json")
+FIXTURE_PATH = Path("data/fixtures/prospeo_person_raw.json")
 
-# Test with ONE profile only — Eazyreach charges per lookup
 TEST_PROSPECT = {
     "name":           "Akhil Joshi",
     "title":          "",
@@ -36,36 +33,32 @@ def fixture_is_valid() -> bool:
         if not content:
             return False
         data = json.loads(content)
-        # fixture is a single raw API response dict
-        return isinstance(data, dict) and "status" in data
+        return isinstance(data, dict) and "person" in data
     except Exception:
         return False
 
 
 def fetch_and_save_fixture(prospect: dict) -> dict:
     load_dotenv()
-    auth_token = os.getenv("EAZYREACH_API_KEY")
-    if not auth_token:
-        print("ERROR: EAZYREACH_API_KEY missing from .env")
+    api_key = os.getenv("PROSPEO_API_KEY", "").strip()
+    if not api_key:
+        print("ERROR: PROSPEO_API_KEY missing from .env")
         sys.exit(1)
 
-    print(f"Calling Eazyreach for 1 profile (credits used)...")
-    print(f"  Profile: {prospect['linkedin_url']}")
-
-    url     = "https://api.superflow.run/b2b/linkedin-emails"
-    headers = {
-        "Content-Type":  "application/json",
-        "Authorization": f"Bearer {auth_token}",
+    print(f"Calling Prospeo enrich-person (1 credit)...")
+    headers = {"Content-Type": "application/json", "X-KEY": api_key}
+    payload = {
+        "only_verified_email": False,
+        "data": {"linkedin_url": prospect["linkedin_url"]}
     }
 
     try:
         r = requests.post(
-            url,
+            "https://api.prospeo.io/enrich-person",
             headers=headers,
-            json={"linkedinUrl": prospect["linkedin_url"]},
+            json=payload,
             timeout=30,
         )
-        r.raise_for_status()
         data = r.json()
     except Exception as e:
         print(f"ERROR: {e}")
@@ -75,7 +68,7 @@ def fetch_and_save_fixture(prospect: dict) -> dict:
     with FIXTURE_PATH.open("w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
-    print(f"Fixture saved to {FIXTURE_PATH} — future runs free.")
+    print(f"Saved to {FIXTURE_PATH} — future runs free.")
     return data
 
 
@@ -85,21 +78,28 @@ def load_fixture() -> dict:
         return json.load(f)
 
 
-def parse_email(data: dict) -> str | None:
-    """Mirror of resolve_emails() picking logic — keep in sync."""
-    if data.get("status") != "success":
+def parse_person(data: dict, prospect: dict) -> dict | None:
+    """Mirror of stage3_prospeo_enrich.py parsing — keep in sync."""
+    if data.get("error"):
         return None
-    emails = data.get("emails", [])
-    for priority in ["verified", "probable"]:
-        for entry in emails:
-            if entry.get("verification") == priority:
-                return entry.get("email", "").strip() or None
-    return None
+    person = data.get("person")
+    if not person:
+        return None
+
+    email_obj = person.get("email") or {}
+    email     = email_obj.get("email", "").strip()
+    revealed  = email_obj.get("revealed", False)
+
+    if not email or not revealed:
+        return None
+
+    title = (person.get("current_job_title") or "").strip()
+    return {**prospect, "email": email, "title": title}
 
 
-def run_tests(data: dict, chosen_email: str | None):
+def run_tests(data: dict, enriched: dict | None):
     print("\n" + "=" * 45)
-    print("TESTS: Stage 3 — Eazyreach Email Resolution")
+    print("TESTS: Stage 3 — Prospeo Person Enrichment")
     print("=" * 45)
     passed = 0
     total  = 0
@@ -113,79 +113,72 @@ def run_tests(data: dict, chosen_email: str | None):
         else:
             print(f"  FAIL  {fail_msg}")
 
-    check(isinstance(data, dict),
-          "response is a dict",
-          f"expected dict, got {type(data)}")
+    check(not data.get("error"),
+          "no error in response",
+          f"API error: {data.get('error_code', '?')}")
 
-    check(data.get("status") == "success",
-          "status is 'success'",
-          f"status is '{data.get('status')}' — check auth token or LinkedIn URL")
+    check("person" in data,
+          "response has 'person' key",
+          "missing 'person' key in response")
 
-    emails = data.get("emails", [])
-    check(isinstance(emails, list),
-          "emails field is a list",
-          f"expected list, got {type(emails)}")
+    person = data.get("person") or {}
+    email_obj = person.get("email") or {}
 
-    check(len(emails) > 0,
-          f"{len(emails)} email(s) returned",
-          "no emails in response — profile may have no findable email")
+    check("email" in email_obj,
+          "person.email object exists",
+          "no email object in person")
 
-    if emails:
-        has_email_field = all("email" in e for e in emails)
-        check(has_email_field,
-              "all email objects have 'email' field",
-              "some email objects missing 'email' field")
+    check(email_obj.get("revealed") == True,
+          "email is revealed",
+          "email not revealed — check Prospeo plan or credit settings")
 
-        has_verification = all("verification" in e for e in emails)
-        check(has_verification,
-              "all email objects have 'verification' field",
-              "some email objects missing 'verification' field")
+    check(bool(email_obj.get("email")),
+          f"email string present: {email_obj.get('email', '')}",
+          "email string is empty")
 
-        valid_verifications = {"verified", "probable"}
-        bad_v = [e for e in emails if e.get("verification") not in valid_verifications]
-        check(not bad_v,
-              f"all verification values are 'verified' or 'probable'",
-              f"{len(bad_v)} emails have unexpected verification value")
-    else:
-        # Skip email field checks if no emails
-        for _ in range(3):
-            total += 1
-            print(f"  SKIP  (no emails to check)")
+    check(email_obj.get("status") in ("VERIFIED", "PROBABLE"),
+          f"email status is valid: {email_obj.get('status')}",
+          f"unexpected email status: {email_obj.get('status')}")
 
-    check(chosen_email is not None,
-          f"best email selected: {chosen_email}",
-          "could not select any email — check picking logic")
+    check(bool(person.get("current_job_title")),
+          f"title found: {person.get('current_job_title')}",
+          "no current_job_title — email personalization will use company context only")
+
+    check(enriched is not None,
+          "parse_person() extracted data successfully",
+          "parse_person() returned None — check field paths")
+
+    if enriched:
+        check("@" in enriched.get("email", ""),
+              "email looks valid",
+              f"email looks invalid: {enriched.get('email')}")
 
     print("=" * 45)
     print(f"RESULT: {passed}/{total} passed")
     print("=" * 45)
 
-    if chosen_email:
-        print(f"\nEmail resolved for {TEST_PROSPECT['name']}:")
-        print(f"  email : {chosen_email}")
-        print(f"  source: Eazyreach")
-        print("\nAll verifications in response:")
-        for e in data.get("emails", []):
-            print(f"  {e.get('verification'):<10} {e.get('email')}")
-        print("\nStage 3 OK. Ready for Stage 4 (email generation).")
+    if enriched:
+        print(f"\nEnriched result:")
+        print(f"  name   : {enriched['name']}")
+        print(f"  email  : {enriched['email']}")
+        print(f"  title  : {enriched['title']}")
+        print(f"  company: {enriched['company_name']}")
+        print("\nStage 3 OK. Ready for Stage 4.")
     else:
-        print("\nNo email found. Check the raw fixture for details.")
-        print(json.dumps(data, indent=2))
+        print("\nNo email extracted. Check fixture for details:")
+        print(json.dumps(data.get("person", {}).get("email", {}), indent=2))
 
 
 if __name__ == "__main__":
     refresh = "--refresh" in sys.argv
 
     if refresh:
-        print("--refresh: fetching from API...")
         raw = fetch_and_save_fixture(TEST_PROSPECT)
     elif not fixture_is_valid():
-        print("No valid fixture — fetching from API (one time)...")
+        print("No valid fixture — fetching from API (1 credit)...")
         raw = fetch_and_save_fixture(TEST_PROSPECT)
     else:
         raw = load_fixture()
 
-    email = parse_email(raw)
-    run_tests(raw, email)
-
-    
+    enriched = parse_person(raw, TEST_PROSPECT)
+    run_tests(raw, enriched)

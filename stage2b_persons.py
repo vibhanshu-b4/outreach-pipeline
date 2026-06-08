@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 TARGET_SENIORITY = ["C-Suite", "Founder/Owner", "Vice President", "Director"]
 
 # Max people per company — keeps credit usage predictable
-MAX_PER_COMPANY = 2
+MAX_PER_COMPANY = 1
 
 
 def find_decision_makers(enriched_companies: list[dict]) -> list[dict]:
@@ -127,7 +127,7 @@ def find_decision_makers(enriched_companies: list[dict]) -> list[dict]:
             found += 1
 
         print(f"{found} prospect(s) found")
-        time.sleep(0.5)
+        time.sleep(1.5)
 
     if not all_prospects:
         print("No prospects found across all companies")

@@ -112,6 +112,9 @@ def _parse_and_save(data: dict) -> list[dict]:
     with out_path.open("w", encoding="utf-8") as f:
         json.dump(companies, f, indent=2, ensure_ascii=False)
 
+    # Limit to 10 companies to save API credits
+    companies = companies[:5]
+
     print(f"Ocean.io: {len(companies)} companies → saved to data/companies.json")
     return companies
 

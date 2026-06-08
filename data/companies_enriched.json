@@ -1,0 +1,38 @@
+[
+  {
+    "name": "Adyen",
+    "domain": "adyen.com",
+    "industry": "Financial Services",
+    "size": "5001-10000",
+    "country": "Netherlands",
+    "city": "Amsterdam",
+    "description": "Adyen (AMS: ADYEN) is the financial technology platform of choice for leading companies. By providing end-to-end payments capabilities, data-driven insights, and financial products in a single global "
+  },
+  {
+    "name": "Razorpay",
+    "domain": "razorpay.com",
+    "industry": "Software Development",
+    "size": "2001-5000",
+    "country": "India",
+    "city": "Bengaluru South",
+    "description": "Razorpay is a payment solution provider for online payments in India. They offer a payment gateway, payment links, payment buttons, qr codes, instant settlement, invoices, subscriptions, international payments, and more. They also provide partner apps and app store services for businesses. Razorpay aims to help businesses accept payments quickly and efficiently."
+  },
+  {
+    "name": "Rapyd",
+    "domain": "rapyd.net",
+    "industry": "Financial Services",
+    "size": "501-1000",
+    "country": "United Kingdom",
+    "city": "London",
+    "description": "Rapyd is a global payment processing and fintech platform that helps businesses accept, send, and manage funds globally. They offer solutions for card acquiring and provide a platform for accepting, sending, and managing funds globally."
+  },
+  {
+    "name": "Cashfree Payments",
+    "domain": "cashfree.com",
+    "industry": "Financial Services",
+    "size": "501-1000",
+    "country": "India",
+    "city": "Bengaluru South",
+    "description": "Cashfree Payments is a complete payment and banking platform for India. It is built for businesses to collect payments, send payouts, manage international payments, launch their next neo banking product, and do more."
+  }
+]

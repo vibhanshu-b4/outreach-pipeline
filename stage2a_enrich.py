@@ -6,114 +6,157 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+PROSPEO_URL = "https://api.prospeo.io/search-company"
+PAGE_SIZE   = 25  # Prospeo returns max 25 per page
+
 
 def enrich_companies(companies: list[dict]) -> list[dict]:
     """
-    Takes list of dicts from Stage 1: {name, domain, industry, size, country}
-    Calls Prospeo company enrichment for each domain.
-    Returns enriched list with added: city, description
-    Saves to data/companies_enriched.json (overwrites Stage 1 output with richer data)
+    Takes company list from Stage 1: {name, domain, industry, size, country}
+    Uses Prospeo search-company with website filter to get enriched data.
 
-    Why enrich if Stage 1 already has industry/size/country?
-    Prospeo data is cleaner and adds city + description_ai for email context.
+    Credit cost: 1 credit per 25 companies (vs 1 per company with enrich-company)
+    10 companies = 1 credit, 50 companies = 2 credits
+
+    Adds to each company: description, city
+    Saves to data/companies_enriched.json
     """
     load_dotenv()
-    api_key = os.getenv("PROSPEO_API_KEY")
+    api_key = os.getenv("PROSPEO_API_KEY", "").strip()
 
     if not api_key:
         print("ERROR: PROSPEO_API_KEY missing from .env")
         return []
 
-    url = "https://api.prospeo.io/enrich-company"
     headers = {
         "Content-Type": "application/json",
-        "X-KEY": api_key,
+        "X-KEY":        api_key,
     }
 
+    # Extract domains from company list
+    domains = [c.get("domain", "").strip() for c in companies if c.get("domain")]
+
+    if not domains:
+        print("No domains to enrich")
+        return []
+
+    # Build a lookup from domain → original company data
+    original_lookup = {c["domain"]: c for c in companies if c.get("domain")}
+
     enriched = []
+    total_pages = (len(domains) + PAGE_SIZE - 1) // PAGE_SIZE
 
-    for i, company in enumerate(companies):
-        domain = company.get("domain", "").strip()
-        if not domain:
-            continue
+    for page_num in range(total_pages):
+        # Send up to 25 domains per request
+        batch = domains[page_num * PAGE_SIZE:(page_num + 1) * PAGE_SIZE]
 
-        print(f"[{i+1}/{len(companies)}] Enriching {domain}...", end=" ")
+        print(f"Fetching page {page_num + 1}/{total_pages} "
+              f"({len(batch)} companies)...", end=" ")
+
+        payload = {
+            "page": 1,
+            "filters": {
+                "company": {
+                    "websites": {
+                        "include": batch
+                    }
+                }
+            }
+        }
 
         try:
             response = requests.post(
-                url,
+                PROSPEO_URL,
                 headers=headers,
-                json={"data": {"company_website": domain}},
+                json=payload,
                 timeout=30,
             )
         except requests.RequestException as exc:
-            print(f"network error — {exc}, skipping")
+            print(f"network error — {exc}, skipping batch")
             continue
 
-        if response.status_code in (401, 403):
-            print("Invalid API key — stopping")
+        if response.status_code == 401:
+            print("invalid API key — stopping")
             break
         if response.status_code == 429:
-            print("rate limited — waiting 10s...")
-            time.sleep(10)
+            print("rate limited — waiting 15s...")
+            time.sleep(15)
+            continue
+        if response.status_code == 400:
+            try:
+                err = response.json()
+            except Exception:
+                err = {}
+            code = err.get("error_code", "?")
+            print(f"error {code} — skipping batch")
             continue
         if response.status_code != 200:
-            print(f"status {response.status_code} — skipping")
+            print(f"status {response.status_code} — skipping batch")
             continue
 
         try:
             data = response.json()
         except ValueError:
-            print("bad JSON — skipping")
+            print("bad JSON — skipping batch")
             continue
 
         if data.get("error"):
-            print(f"API error — skipping")
+            print(f"API error: {data.get('error_code')} — skipping batch")
             continue
 
-        c = data.get("company", {})
-        if not c:
-            print("no company data — skipping")
-            continue
+        results = data.get("results", [])
+        free    = data.get("free", False)
+        print(f"{len(results)} returned {'(free/cached)' if free else ''}")
 
-        # Extract only what we need — lean output
-        enriched.append({
-            "name":        c.get("name") or company.get("name") or "",
-            "domain":      c.get("domain") or domain,
-            "industry":    c.get("industry") or company.get("industry") or "",
-            "size":        c.get("employee_range") or company.get("size") or "",
-            "country":     (c.get("location") or {}).get("country") or company.get("country") or "",
-            "city":        (c.get("location") or {}).get("city") or "",
-            "description": c.get("description_ai") or "",
-        })
-        print("done")
+        for result in results:
+            company = result.get("company", {})
+            if not company:
+                continue
 
-        # Small delay to avoid hammering the API
-        time.sleep(0.5)
+            domain = (company.get("domain") or "").strip()
+            if not domain:
+                continue
+
+            # Get original data as fallback for missing fields
+            original = original_lookup.get(domain, {})
+
+            enriched.append({
+                "name":        company.get("name") or original.get("name") or "",
+                "domain":      domain,
+                "industry":    company.get("industry") or original.get("industry") or "",
+                "size":        company.get("employee_range") or original.get("size") or "",
+                "country":     (company.get("location") or {}).get("country") or original.get("country") or "",
+                "city":        (company.get("location") or {}).get("city") or "",
+                "description": company.get("description_ai") or company.get("description", "")[:200] or "",
+            })
+
+        time.sleep(1.0)  # polite delay between pages
 
     if not enriched:
         print("No companies enriched")
         return []
 
-    # Save — overwrites companies.json with richer version
+    # Save to separate file — never overwrites companies.json
     out_path = Path("data/companies_enriched.json")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8") as f:
         json.dump(enriched, f, indent=2, ensure_ascii=False)
 
-    print(f"\nProspeo: {len(enriched)} companies enriched → saved to data/companies_enriched.json")
+    print(f"\nStage 2A: {len(enriched)} companies enriched "
+          f"→ saved to data/companies_enriched.json")
     return enriched
 
 
 if __name__ == "__main__":
-    # Quick standalone test with 2 companies
-    test_input = [
-        {"name": "Razorpay", "domain": "razorpay.com",
-         "industry": "", "size": "", "country": "in"},
-        {"name": "Cashfree", "domain": "cashfree.com",
-         "industry": "", "size": "", "country": "in"},
+    # Test with 3 companies — costs 1 credit
+    test_companies = [
+        {"name": "Razorpay",          "domain": "razorpay.com",  "industry": "", "size": "", "country": ""},
+        {"name": "Cashfree Payments", "domain": "cashfree.com",  "industry": "", "size": "", "country": ""},
+        {"name": "Adyen",             "domain": "adyen.com",     "industry": "", "size": "", "country": ""},
     ]
-    result = enrich_companies(test_input)
-    print(f"\nTotal enriched: {len(result)}")
+    result = enrich_companies(test_companies)
+    print(f"\nTotal: {len(result)}")
     if result:
         print("Sample:", json.dumps(result[0], indent=2))
+
+        

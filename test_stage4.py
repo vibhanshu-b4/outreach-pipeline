@@ -112,7 +112,7 @@ def run_tests():
 
     # --- Test 3: no junk keys ---
     print("\n[Test 3] No extra keys...")
-    extra = set(result.keys()) - {"subject", "body"}
+    extra = set(result.keys()) - {"subject", "body", "method"}
     check(not extra,
           "no extra keys in output",
           f"unexpected extra keys: {extra}")
@@ -158,6 +158,6 @@ def run_tests():
 
 
 if __name__ == "__main__":
-    print("Make sure Ollama is running before this test.")
+    print("Ollama must be running in background (auto-starts on Windows).")
     print("Start it with: ollama serve\n")
     run_tests()

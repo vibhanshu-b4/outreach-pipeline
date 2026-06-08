@@ -197,7 +197,7 @@ def run_tests(prospects: list[dict]):
             print(f"  title   : {p['title']}")
             print(f"  company : {p['company_name']} ({p['company_domain']})")
             print(f"  linkedin: {p['linkedin_url']}")
-        print("\nStage 2B OK. Ready for Stage 3 (Eazyreach).")
+        print("\nStage 2B OK. Ready for Stage 3 (Prospeo enrich-person).")
     else:
         print("\nFix failures above before moving to Stage 3.")
 

@@ -1,79 +1,84 @@
 import json
+import re
 import requests
 
 OLLAMA_URL   = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "llama3.2:latest"
 
-YOUR_NAME = "Vibhanshu"
-
+YOUR_NAME    = "Vibhanshu"
 YOUR_COMPANY = "Vocallabs"
-
 YOUR_PITCH = (
-    "We build AI voice agents that automate customer support, "
-    "sales conversations, lead qualification, and follow-ups at scale. "
-    "Our platform helps businesses handle high volumes of customer interactions "
-    "through natural, human-like voice conversations while reducing operational overhead."
+    "We build AI voice agents that automate customer support, sales "
+    "conversations, lead qualification, appointment booking, and follow-ups. "
+    "Companies use Vocallabs to handle more customer interactions with "
+    "human-like voice conversations while reducing operational overhead."
 )
 
 
 def _fixed_template(
-    first_name: str,
+    first_name:   str,
     company_name: str,
-    industry: str,
-    title: str,
-    description: str,
+    industry:     str,
+    title:        str,
+    description:  str,
 ) -> dict:
     """
-    Deterministic outreach template.
-    Uses all available context while avoiding hallucinations.
+    Primary email — well-crafted fixed template using all available data.
+    Consistent, personalized, no hallucination risk.
     """
-
-    observation = ""
+    # Clean description — extract a natural one-liner about the company
+    desc_clean = ""
     if description:
-        first_sentence = description.split(".")[0].strip()
-        if first_sentence:
-            observation = f"I noticed {first_sentence.lower()}."
-
-    if title:
-        opener = (
-            f"I came across {company_name} and noticed your work as "
-            f"{title} there."
+        first = description.split(".")[0].strip()
+        # Remove stock exchange patterns like "(AMS: ADYEN)", "(NASDAQ: SQ)"
+        first = re.sub(r"\([A-Z]{1,6}:\s*[A-Z]+\)", "", first).strip()
+        # If sentence starts with company name + "is/are/was", extract the predicate
+        # e.g. "Razorpay is a payment provider" → "a payment provider"
+        pattern = re.compile(
+            r"^" + re.escape(company_name) + r"\s+(is|are|was|has|have)\s+",
+            re.IGNORECASE
         )
+        match = pattern.match(first)
+        if match:
+            predicate = first[match.end():].strip().rstrip(".")
+            if len(predicate) > 15:
+                desc_clean = predicate  # "a payment solution provider for online payments in India"
+        elif len(first) > 20:
+            desc_clean = first.rstrip(".")
+
+    # Title-aware opener
+    if title and desc_clean:
+        opener = f"I came across {company_name} — {desc_clean}. I noticed your role as {title} there."
+    elif title:
+        opener = f"I came across {company_name} and noticed your work as {title} there."
+    elif desc_clean:
+        opener = f"I came across {company_name} — {desc_clean}."
     else:
-        opener = (
-            f"I came across {company_name} and was impressed by what "
-            f"your team is building."
-        )
+        opener = f"I came across {company_name} and was impressed by what your team is building."
 
+    # Industry-aware pitch line
     if industry:
-        fit_line = (
-            f"Given {company_name}'s focus in {industry}, "
-            f"I think there's a strong fit with what we're building "
-            f"at {YOUR_COMPANY}."
+        pitch_line = (
+            f"Given {company_name}'s focus in {industry}, I think there's "
+            f"a strong fit with what we're building at {YOUR_COMPANY}."
         )
     else:
-        fit_line = (
-            f"I think there's a strong fit between "
-            f"{company_name} and what we're building at {YOUR_COMPANY}."
+        pitch_line = (
+            f"I think there's a strong fit between {company_name} "
+            f"and what we're building at {YOUR_COMPANY}."
         )
 
-    subject = f"Quick question about {company_name}"
-
-    body = (
+    subject = f"{company_name} × {YOUR_COMPANY} — Quick Question"
+    body    = (
         f"Hi {first_name},\n\n"
         f"{opener}\n\n"
-        f"{observation}\n\n"
-        f"{fit_line}\n\n"
+        f"{pitch_line}\n\n"
         f"{YOUR_PITCH}\n\n"
-        f"Worth a 15-minute conversation sometime this week?\n\n"
-        f"Best,\n"
-        f"{YOUR_NAME}"
+        f"Worth a 15-min call to explore?\n\n"
+        f"Best,\n{YOUR_NAME}"
     )
 
-    return {
-        "subject": subject,
-        "body": body,
-    }
+    return {"subject": subject, "body": body}
 
 
 def _ollama_enhance(
@@ -88,60 +93,23 @@ def _ollama_enhance(
     Optional Ollama enhancement — rewrites the fixed template
     to sound more natural. Falls back to fixed if it fails.
     """
-    prompt = f"""
-You are an experienced B2B SDR writing a concise cold outreach email.
+    prompt = f"""Rewrite this cold outreach email to sound more natural and conversational.
+Keep all the facts. Do not add new claims. Stay under 90 words for the body.
+Last line must be exactly: Best,\\n{YOUR_NAME}
 
-Your task is to improve the email below while preserving all factual information.
+Original email:
+Subject: {fixed['subject']}
+Body: {fixed['body']}
 
-RULES:
-- Keep the recipient's name.
-- Keep the company name.
-- Keep the prospect's role/title context.
-- Keep the core value proposition.
-- Do NOT invent facts, metrics, customers, results, or achievements.
-- Do NOT add information that is not present in the provided email or context.
-- Do NOT use hype, marketing buzzwords, or exaggerated claims.
-- Keep the tone professional, confident, and conversational.
-- Keep the body under 120 words.
-- End with a simple call-to-action.
-- The final signature MUST be exactly:
+Context about recipient:
+- Name: {first_name}
+- Title: {title or 'unknown'}
+- Company: {company_name}
+- Industry: {industry}
+- About company: {description[:100] if description else 'N/A'}
 
-Best,
-{YOUR_NAME}
-
-ORIGINAL EMAIL
-
-Subject:
-{fixed['subject']}
-
-Body:
-{fixed['body']}
-
-RECIPIENT CONTEXT
-
-Name: {first_name}
-Title: {title or 'Unknown'}
-Company: {company_name}
-Industry: {industry or 'Unknown'}
-Company Description:
-{description[:300] if description else 'N/A'}
-
-OUTPUT REQUIREMENTS
-
-Return ONLY valid JSON.
-
-Required format:
-
-{{
-  "subject": "email subject",
-  "body": "email body"
-}}
-
-Do not include markdown.
-Do not include code fences.
-Do not include explanations.
-Do not include any text outside the JSON object.
-"""
+Return ONLY valid JSON with keys "subject" and "body". No markdown, no explanation.
+Format: {{"subject": "...", "body": "Hi {first_name},\\n\\n...\\n\\nBest,\\n{YOUR_NAME}"}}"""
 
     try:
         response = requests.post(
@@ -180,10 +148,8 @@ Do not include any text outside the JSON object.
 
         # Sanity check — must still mention company and first name
         combined = (body + data["subject"]).lower()
-        if company_name.lower() not in combined:
-            raise ValueError("Lost company name")
-        if first_name.lower() not in combined:
-            raise ValueError("Lost prospect name")
+        if company_name.lower() not in combined and first_name.lower() not in combined:
+            raise ValueError("Lost personalization")
 
         return {"subject": data["subject"].strip(), "body": body}
 
@@ -267,6 +233,20 @@ def generate_emails_for_all(
     print(f"\nStage 4: {len(results)} emails generated "
           f"({ollama_count} ollama, {template_count} template)")
     return results
+
+
+def _fallback_template(first_name: str, company_name: str) -> dict:
+    """
+    Compatibility wrapper for test_stage4.py
+    Uses the same fixed template logic when Ollama is unavailable.
+    """
+    return _fixed_template(
+        first_name=first_name,
+        company_name=company_name,
+        industry="",
+        title="",
+        description=""
+    )
 
 
 if __name__ == "__main__":

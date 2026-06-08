@@ -8,7 +8,11 @@ Run: python test_stage5.py
 Run dry run: python test_stage5.py --dry-run
 """
 import sys
-from stage5_brevo import send_emails, TEST_RECIPIENT
+import os
+from dotenv import load_dotenv
+load_dotenv()
+from stage5_brevo import send_emails
+TEST_RECIPIENT = os.getenv("BREVO_TEST_RECIPIENT", "anonymous2002@gmail.com")
 
 TEST_PROSPECT = {
     "name":         "Akhil Joshi",

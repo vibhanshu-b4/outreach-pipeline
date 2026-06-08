@@ -374,8 +374,8 @@ PROSPEO_API_KEY=
 
 BREVO_API_KEY=
 
-SENDER_NAME=Vibhanshu
-SENDER_EMAIL=contact@vibhanshu.online
+SENDER_NAME=Your Name
+SENDER_EMAIL=Your Brevo Sender Mail
 
 TEST_RECIPIENT=your-email@gmail.com
 ```
@@ -465,4 +465,3 @@ Redirecting all emails to a test inbox prevents accidental outreach during devel
 
 Vibhanshu Bhardwaj
 
-Built as part of the Vocallabs / Subspace SDE Intern Assessment.

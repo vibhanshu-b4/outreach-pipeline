@@ -234,16 +234,15 @@ python main.py stripe
 ## Environment Variables
 
 ```env
+
 OCEAN_API_KEY=
-
 PROSPEO_API_KEY=
-
 BREVO_API_KEY=
 
-SENDER_NAME=
-SENDER_EMAIL=
+BREVO_SENDER_NAME=
+BREVO_SENDER_EMAIL=
+BREVO_TEST_RECIPIENT=
 
-TEST_RECIPIENT=
 ```
 
 ---
